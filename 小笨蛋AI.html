@@ -1280,6 +1280,39 @@ function getWeatherSuggestion() {
 
 // 随机模块提示功能
 function getRandomModuleSuggestion() {
+    // 80% 概率返回粉色按钮功能建议，20% 返回原有模块建议
+    if (Math.random() < 0.8) {
+        const moduleKeywords = [
+            "你好", "再见", "谢谢", "你是谁", "你叫什么", "你是什么",
+            "我想你", "我爱你", "我喜欢你", "你真好", "你真可爱",
+            "早上好", "中午好", "下午好", "晚上好", "晚安",
+            "天气", "吃饭", "睡觉", "学习", "考试", "作业",
+            "难过", "开心", "压力", "音乐", "电影", "读书",
+            "运动", "编程", "电脑", "手机", "健康", "工作",
+            "朋友", "家人", "爱情", "加班", "数学", "语文",
+            "英语", "物理", "化学", "生物", "历史", "地理",
+            "做饭", "理财", "时间管理", "沟通", "情绪管理",
+            "摄影", "绘画", "手工", "园艺", "宠物",
+            "面试", "团队合作", "领导力", "创新", "执行力",
+            "焦虑", "抑郁", "自信", "乐观",
+            "人工智能", "数据分析", "网络安全", "区块链",
+            "环保", "健康饮食", "运动健身", "睡眠", "心理健康"
+        ];
+        // 过滤 defaultFuncs，排除已在模块建议池的同名功能
+        const funFuncs = (typeof defaultFuncs !== 'undefined' && Array.isArray(defaultFuncs))
+            ? defaultFuncs.filter(f => !moduleKeywords.includes(f.cmd))
+            : [];
+        const fun = funFuncs.length > 0 ? getRandom(funFuncs) : null;
+        if (fun) {
+            return {
+                category: '趣味功能',
+                keyword: fun.cmd,
+                suggestion: `试试点击“${fun.name}”或输入“${fun.cmd}”体验有趣功能吧！`
+            };
+        }
+        // 如果没有可用的funFuncs，降级为原有逻辑
+    }
+    // 原有逻辑
     const moduleCategories = [
         { name: "基础问答", keywords: ["你好", "再见", "谢谢", "你是谁", "你叫什么", "你是什么"] },
         { name: "情感交流", keywords: ["我想你", "我爱你", "我喜欢你", "你真好", "你真可爱"] },
@@ -1296,11 +1329,8 @@ function getRandomModuleSuggestion() {
         { name: "科技前沿", keywords: ["人工智能", "编程", "数据分析", "网络安全", "区块链"] },
         { name: "环保健康", keywords: ["环保", "健康饮食", "运动健身", "睡眠", "心理健康"] }
     ];
-    
-    // 随机选择一个模块类别
     const randomCategory = getRandom(moduleCategories);
     const randomKeyword = getRandom(randomCategory.keywords);
-    
     return {
         category: randomCategory.name,
         keyword: randomKeyword,
@@ -2598,15 +2628,41 @@ function getContextualResponse(input) {
         // 故事接龙模式
     if (storyMode) {
         storyContext += ' ' + input;
-        const storyEndings = [
-            "从此，他们过上了幸福快乐的生活~",
-            "这个故事告诉我们，友谊是最珍贵的宝藏！",
-            "最后，大家都学会了分享和关爱~",
-            "他们成为了最好的朋友，每天都很开心~",
-            "这个故事传遍了整个森林，成为了经典~"
+        
+        // 检查是否要结束故事（用户输入结束相关词汇）
+        const endKeywords = ['结束', '完了', '结束吧', '就这样', '好了', '结束故事', '故事结束'];
+        if (endKeywords.some(keyword => input.includes(keyword))) {
+            const storyEndings = [
+                "从此，他们过上了幸福快乐的生活~",
+                "这个故事告诉我们，友谊是最珍贵的宝藏！",
+                "最后，大家都学会了分享和关爱~",
+                "他们成为了最好的朋友，每天都很开心~",
+                "这个故事传遍了整个森林，成为了经典~",
+                "故事到这里就结束了，真是一个美好的故事呢~",
+                "从此以后，他们过上了幸福美满的生活~",
+                "这个故事告诉我们，善良和勇气是最重要的~",
+                "最后，大家都明白了友情的珍贵~",
+                "他们成为了永远的伙伴，一起面对未来的挑战~"
+            ];
+            storyMode = false;
+            return `📖 故事结束：${storyContext}... ${getRandom(storyEndings)} ${getRandom(cuteAscii)}`;
+        }
+        
+        // 继续故事，AI添加一些内容
+        const storyContinuations = [
+            "然后呢？",
+            "接下来发生了什么？",
+            "真有趣，继续讲吧~",
+            "哇，好精彩！然后呢？",
+            "太棒了，故事越来越有趣了！",
+            "继续继续，我想听更多~",
+            "这个故事真有意思，接下来呢？",
+            "好期待后面的发展啊~",
+            "太精彩了，请继续~",
+            "故事越来越吸引人了，然后呢？"
         ];
-        storyMode = false;
-        return `故事继续：${storyContext}... ${getRandom(storyEndings)} ${getRandom(cuteAscii)}`;
+        
+        return `📖 故事继续：${storyContext}... ${getRandom(storyContinuations)}`;
     }
     }
     
