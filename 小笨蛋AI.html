@@ -867,6 +867,33 @@
         }
         
         .ai-prompts-section-title {
+            font-weight: bold;
+            color: #7c4dff;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            #profile-panel {
+                width: 95%;
+                max-height: 90vh;
+            }
+            
+            .panel-content {
+                padding: 15px;
+            }
+            
+            .profile-actions {
+                flex-direction: column;
+            }
+            
+            .save-btn,
+            .reset-btn {
+                width: 100%;
+            }
+        }
+        
+        .ai-prompts-section-title {
             font-size: 14px;
             font-weight: bold;
             color: #7c4dff;
@@ -976,6 +1003,26 @@
         .bot-avatar.animated {
             animation: avatarShake 0.7s cubic-bezier(.68,-0.55,.27,1.55);
         }
+        
+        /* 确保输入框稳定性，防止键盘闪退 */
+        #profile-panel input,
+        #profile-panel select {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        #profile-panel input:focus,
+        #profile-panel select:focus {
+            outline: none;
+            border-color: #7c4dff;
+            box-shadow: 0 0 0 2px rgba(124, 77, 255, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -1009,7 +1056,7 @@
 // 新增功能：随机模块提示、表情回复系统、智能优先级管理
 const cuteWords = [
     "喵~", "比心", "抱抱你", "给你贴贴", "你超棒der~", "哼哼唧唧", "啾咪~", "摸摸头", "小可爱", "元气满满", "超级棒", "软萌软萌的", "要开心哦~", "给你一颗小心心", "你是我的小宝贝~",
-    "你今天也是小天使！", "给你一个大大的拥抱！", "你笑起来像彩虹糖！", "你是我的快乐星球！", "你比奶茶还甜！", "你是宇宙无敌超级可爱星！", "你一笑，bug都吓跑啦！", "你开心我就开心！", "你是我心中的小太阳！", "你比猫猫还萌！"
+    "你今天也是小笨蛋！", "给你一个大大的拥抱！", "你笑起来像彩虹糖！", "你是我的快乐星球！", "你比奶茶还甜！", "你是宇宙无敌超级可爱星！", "你一笑，bug都吓跑啦！", "你开心我就开心！", "你是我心中的小太阳！", "你比猫猫还萌！"
 ];
 const cuteAscii = [
     "(｡•ᴗ-)_旦~~", "(づ｡◕‿‿◕｡)づ", "(｡･ω･｡)ﾉ♡", "(ฅ´ω`ฅ)", "(≧∇≦)ﾉ", "(๑•̀ㅂ•́)و✧", "(｡>∀<｡)", "(｡•ㅅ•｡)♡", "(￣ε￣＠)", "(｡•̀ᴗ-)✧",
@@ -1122,8 +1169,9 @@ let guessNumberMode = false;
 let targetNumber = 0;
 let guessAttempts = 0;
 let maxGuessAttempts = 10;
-let storyMode = false;
-let storyContext = '';
+let storyMode = JSON.parse(localStorage.getItem('storyMode') || 'false');
+let storyContext = localStorage.getItem('storyContext') || '';
+let addKnowledgeMode = JSON.parse(localStorage.getItem('addKnowledgeMode') || 'false');
 let roleplayMode = false;
 let currentRole = '';
 let moodDiary = [];
@@ -1140,6 +1188,18 @@ let searchStats = {
     totalInteractions: 0,
     randomModuleSuggestions: 0,
     emojiReplies: 0
+};
+
+// 用户画像系统
+let userProfile = {
+    age: localStorage.getItem('userAge') || null,
+    gender: localStorage.getItem('userGender') || null,
+    personality: localStorage.getItem('userPersonality') || null,
+    speakingStyle: JSON.parse(localStorage.getItem('userSpeakingStyle') || '{}'),
+    conversationHistory: JSON.parse(localStorage.getItem('userConversationHistory') || '[]'),
+    svdProfile: JSON.parse(localStorage.getItem('userSvdProfile') || '{}'),
+    aiAgent: JSON.parse(localStorage.getItem('userAiAgent') || '{}'),
+    lastUpdated: localStorage.getItem('userProfileLastUpdated') || null
 };
 
 // 用户学习进度跟踪
@@ -1196,6 +1256,530 @@ function analyzeUserMood(input) {
     
     return detectedMood;
 }
+// 自动画像提取函数：每次用户发言后自动提取画像相关信息
+function autoExtractProfile(text) {
+    // 姓名
+    let nameMatch = text.match(/我叫([\u4e00-\u9fa5A-Za-z0-9_]{1,12})/);
+    if (nameMatch) userProfile.name = nameMatch[1];
+    // 年龄
+    let ageMatch = text.match(/([0-9]{1,3})岁/);
+    if (ageMatch && ageMatch[1]) userProfile.age = ageMatch[1];
+    // 性别
+    if (/我是男(生|孩|性)?|性别[是为]?男/.test(text)) userProfile.gender = '男';
+    if (/我是女(生|孩|性)?|性别[是为]?女/.test(text)) userProfile.gender = '女';
+    if (/性别[是为]?其他|我是其他性别/.test(text)) userProfile.gender = '其他';
+    // 性格
+    let personalityMatch = text.match(/(我[的]?性格[是为:]?|我是)([\u4e00-\u9fa5A-Za-z]{2,8})/);
+    if (personalityMatch && personalityMatch[2]) userProfile.personality = personalityMatch[2];
+    // 兴趣（简单示例：技术、娱乐、学习、健康、情感、生活）
+    const interestMap = {
+        技术: ['编程','代码','技术','人工智能','AI','机器学习','算法'],
+        学习: ['学习','考试','作业','知识','教育','读书'],
+        生活: ['生活','日常','吃饭','睡觉','工作','休息'],
+        娱乐: ['电影','音乐','游戏','娱乐','综艺','明星'],
+        情感: ['爱情','友情','亲情','感情','心情','情绪'],
+        健康: ['健康','运动','健身','饮食','睡眠','身体']
+    };
+    userProfile.interests = userProfile.interests || {};
+    for (const [cat, kws] of Object.entries(interestMap)) {
+        for (const kw of kws) {
+            if (text.includes(kw)) {
+                userProfile.interests[cat] = (userProfile.interests[cat]||0)+1;
+            }
+        }
+    }
+    // 自动保存
+    if (typeof saveUserProfile === 'function') saveUserProfile();
+}
+// 用户画像分析功能
+function analyzeUserProfile(input, age = null, gender = null, personality = null) {
+    // 更新用户基本信息
+    if (age) userProfile.age = age;
+    if (gender) userProfile.gender = gender;
+    if (personality) userProfile.personality = personality;
+    
+    // 分析说话风格
+    const speakingStyle = analyzeSpeakingStyle(input);
+    userProfile.speakingStyle = { ...userProfile.speakingStyle, ...speakingStyle };
+    
+    // 记录对话历史
+    userProfile.conversationHistory.push({
+        input: input,
+        timestamp: new Date().toISOString(),
+        mood: analyzeUserMood(input),
+        speakingStyle: speakingStyle
+    });
+    
+    // 只保留最近100条对话记录
+    if (userProfile.conversationHistory.length > 100) {
+        userProfile.conversationHistory = userProfile.conversationHistory.slice(-100);
+    }
+    
+    // 生成SVD用户画像
+    const svdProfile = generateSvdProfile();
+    userProfile.svdProfile = svdProfile;
+    
+    // 生成对话智能体
+    const aiAgent = generateAiAgent();
+    userProfile.aiAgent = aiAgent;
+    
+    // 更新最后更新时间
+    userProfile.lastUpdated = new Date().toISOString();
+    
+    // 保存到本地存储
+    saveUserProfile();
+    
+    return { svdProfile, aiAgent };
+}
+
+// 分析说话风格
+function analyzeSpeakingStyle(input) {
+    const style = {
+        formality: 0, // 正式程度 0-10
+        emotion: 0,   // 情感表达 0-10
+        complexity: 0, // 语言复杂度 0-10
+        politeness: 0, // 礼貌程度 0-10
+        humor: 0,      // 幽默感 0-10
+        emoji: 0,      // 表情使用 0-10
+        length: 0,     // 消息长度倾向 0-10
+        topics: []     // 感兴趣的话题
+    };
+    
+    // 分析正式程度
+    const formalWords = ['您好', '请问', '谢谢', '抱歉', '不好意思', '麻烦', '劳驾'];
+    const informalWords = ['哈哈', '嘿嘿', '嘻嘻', '啦啦', '耶', '哇', '哦', '嗯', '啊'];
+    
+    let formalCount = 0, informalCount = 0;
+    formalWords.forEach(word => { if (input.includes(word)) formalCount++; });
+    informalWords.forEach(word => { if (input.includes(word)) informalCount++; });
+    
+    style.formality = Math.min(10, Math.max(0, 5 + (formalCount - informalCount) * 2));
+    
+    // 分析情感表达
+    const emotionWords = ['开心', '难过', '生气', '兴奋', '担心', '期待', '失望', '惊喜'];
+    let emotionCount = 0;
+    emotionWords.forEach(word => { if (input.includes(word)) emotionCount++; });
+    style.emotion = Math.min(10, emotionCount * 2);
+    
+    // 分析语言复杂度
+    const complexWords = ['人工智能', '机器学习', '深度学习', '算法', '编程', '技术', '理论', '分析'];
+    let complexCount = 0;
+    complexWords.forEach(word => { if (input.includes(word)) complexCount++; });
+    style.complexity = Math.min(10, complexCount * 2);
+    
+    // 分析礼貌程度
+    const politeWords = ['请', '谢谢', '抱歉', '不好意思', '麻烦', '劳驾', '您'];
+    let politeCount = 0;
+    politeWords.forEach(word => { if (input.includes(word)) politeCount++; });
+    style.politeness = Math.min(10, politeCount * 2);
+    
+    // 分析幽默感
+    const humorWords = ['哈哈', '嘿嘿', '嘻嘻', '😊', '😂', '😄', '😆', '🤣'];
+    let humorCount = 0;
+    humorWords.forEach(word => { if (input.includes(word)) humorCount++; });
+    style.humor = Math.min(10, humorCount * 2);
+    
+    // 分析表情使用
+    const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+    const emojis = input.match(emojiRegex) || [];
+    style.emoji = Math.min(10, emojis.length * 2);
+    
+    // 分析消息长度
+    style.length = Math.min(10, Math.floor(input.length / 10));
+    
+    // 分析感兴趣的话题
+    const topics = {
+        '技术': ['编程', '代码', '技术', '人工智能', 'AI', '机器学习', '算法'],
+        '学习': ['学习', '考试', '作业', '知识', '教育', '读书'],
+        '生活': ['生活', '日常', '吃饭', '睡觉', '工作', '休息'],
+        '娱乐': ['电影', '音乐', '游戏', '娱乐', '综艺', '明星'],
+        '情感': ['爱情', '友情', '亲情', '感情', '心情', '情绪'],
+        '健康': ['健康', '运动', '健身', '饮食', '睡眠', '身体']
+    };
+    
+    for (const [topic, keywords] of Object.entries(topics)) {
+        for (const keyword of keywords) {
+            if (input.includes(keyword)) {
+                if (!style.topics.includes(topic)) {
+                    style.topics.push(topic);
+                }
+                break;
+            }
+        }
+    }
+    
+    return style;
+}
+
+// 生成SVD用户画像
+function generateSvdProfile() {
+    const svdProfile = {
+        // 社交维度 (Social)
+        social: {
+            extroversion: 0, // 外向性
+            agreeableness: 0, // 宜人性
+            communication: 0  // 沟通能力
+        },
+        // 价值观维度 (Values)
+        values: {
+            openness: 0,     // 开放性
+            conscientiousness: 0, // 尽责性
+            creativity: 0     // 创造力
+        },
+        // 发展维度 (Development)
+        development: {
+            learning: 0,     // 学习能力
+            adaptability: 0,  // 适应性
+            growth: 0         // 成长潜力
+        }
+    };
+    
+    // 基于对话历史计算SVD维度
+    if (userProfile.conversationHistory.length > 0) {
+        const history = userProfile.conversationHistory;
+        
+        // 计算外向性
+        const extroversionSignals = history.filter(h => 
+            h.speakingStyle.emotion > 5 || 
+            h.speakingStyle.emoji > 5 || 
+            h.speakingStyle.humor > 5
+        ).length;
+        svdProfile.social.extroversion = Math.min(10, (extroversionSignals / history.length) * 10);
+        
+        // 计算宜人性
+        const agreeablenessSignals = history.filter(h => 
+            h.speakingStyle.politeness > 5 || 
+            h.mood === 'happy' || 
+            h.mood === 'calm'
+        ).length;
+        svdProfile.social.agreeableness = Math.min(10, (agreeablenessSignals / history.length) * 10);
+        
+        // 计算沟通能力
+        const communicationSignals = history.filter(h => 
+            h.speakingStyle.length > 3 || 
+            h.speakingStyle.complexity > 3
+        ).length;
+        svdProfile.social.communication = Math.min(10, (communicationSignals / history.length) * 10);
+        
+        // 计算开放性
+        const opennessSignals = history.filter(h => 
+            h.speakingStyle.complexity > 5 || 
+            h.speakingStyle.topics.includes('技术') || 
+            h.speakingStyle.topics.includes('学习')
+        ).length;
+        svdProfile.values.openness = Math.min(10, (opennessSignals / history.length) * 10);
+        
+        // 计算尽责性
+        const conscientiousnessSignals = history.filter(h => 
+            h.speakingStyle.formality > 5 || 
+            h.speakingStyle.topics.includes('学习') || 
+            h.speakingStyle.topics.includes('工作')
+        ).length;
+        svdProfile.values.conscientiousness = Math.min(10, (conscientiousnessSignals / history.length) * 10);
+        
+        // 计算创造力
+        const creativitySignals = history.filter(h => 
+            h.speakingStyle.humor > 5 || 
+            h.speakingStyle.topics.includes('娱乐') || 
+            h.speakingStyle.topics.includes('技术')
+        ).length;
+        svdProfile.values.creativity = Math.min(10, (creativitySignals / history.length) * 10);
+        
+        // 计算学习能力
+        const learningSignals = history.filter(h => 
+            h.speakingStyle.topics.includes('学习') || 
+            h.speakingStyle.complexity > 5
+        ).length;
+        svdProfile.development.learning = Math.min(10, (learningSignals / history.length) * 10);
+        
+        // 计算适应性
+        const adaptabilitySignals = history.filter(h => 
+            h.mood === 'happy' || 
+            h.mood === 'calm' || 
+            h.speakingStyle.humor > 5
+        ).length;
+        svdProfile.development.adaptability = Math.min(10, (adaptabilitySignals / history.length) * 10);
+        
+        // 计算成长潜力
+        const growthSignals = history.filter(h => 
+            h.speakingStyle.topics.includes('学习') || 
+            h.speakingStyle.topics.includes('技术') || 
+            h.speakingStyle.topics.includes('健康')
+        ).length;
+        svdProfile.development.growth = Math.min(10, (growthSignals / history.length) * 10);
+    }
+    
+    return svdProfile;
+}
+
+// 生成对话智能体
+function generateAiAgent() {
+    const aiAgent = {
+        personality: '',
+        speakingStyle: '',
+        responsePattern: '',
+        specialFeatures: [],
+        recommendations: []
+    };
+    
+    // 基于用户画像生成AI智能体特征
+    if (userProfile.svdProfile.social) {
+        const social = userProfile.svdProfile.social;
+        
+        // 根据外向性调整AI性格
+        if (social.extroversion > 7) {
+            aiAgent.personality = '活泼开朗型';
+            aiAgent.speakingStyle = '热情洋溢，喜欢用表情符号和感叹号';
+        } else if (social.extroversion > 4) {
+            aiAgent.personality = '温和友好型';
+            aiAgent.speakingStyle = '平易近人，适度使用表情符号';
+        } else {
+            aiAgent.personality = '沉稳内敛型';
+            aiAgent.speakingStyle = '稳重可靠，较少使用表情符号';
+        }
+        
+        // 根据宜人性调整回应模式
+        if (social.agreeableness > 7) {
+            aiAgent.responsePattern = '积极支持型';
+            aiAgent.specialFeatures.push('善于鼓励和安慰');
+        } else if (social.agreeableness > 4) {
+            aiAgent.responsePattern = '平衡互动型';
+            aiAgent.specialFeatures.push('理性分析和情感支持并重');
+        } else {
+            aiAgent.responsePattern = '直接务实型';
+            aiAgent.specialFeatures.push('提供实用建议和解决方案');
+        }
+    }
+    
+    // 根据价值观维度添加特殊功能
+    if (userProfile.svdProfile.values) {
+        const values = userProfile.svdProfile.values;
+        
+        if (values.openness > 7) {
+            aiAgent.specialFeatures.push('提供创新思维和创意建议');
+            aiAgent.recommendations.push('推荐前沿科技和艺术内容');
+        }
+        
+        if (values.conscientiousness > 7) {
+            aiAgent.specialFeatures.push('提供详细规划和执行建议');
+            aiAgent.recommendations.push('推荐学习方法和效率工具');
+        }
+        
+        if (values.creativity > 7) {
+            aiAgent.specialFeatures.push('提供创意激发和灵感来源');
+            aiAgent.recommendations.push('推荐创意活动和娱乐内容');
+        }
+    }
+    
+    // 根据发展维度添加成长建议
+    if (userProfile.svdProfile.development) {
+        const development = userProfile.svdProfile.development;
+        
+        if (development.learning > 7) {
+            aiAgent.specialFeatures.push('提供个性化学习路径');
+            aiAgent.recommendations.push('推荐进阶学习资源');
+        }
+        
+        if (development.adaptability > 7) {
+            aiAgent.specialFeatures.push('提供压力管理和情绪调节建议');
+            aiAgent.recommendations.push('推荐放松和调节活动');
+        }
+        
+        if (development.growth > 7) {
+            aiAgent.specialFeatures.push('提供个人发展规划');
+            aiAgent.recommendations.push('推荐成长和提升机会');
+        }
+    }
+    
+    return aiAgent;
+}
+
+// 保存用户画像
+function saveUserProfile() {
+    localStorage.setItem('userAge', userProfile.age);
+    localStorage.setItem('userGender', userProfile.gender);
+    localStorage.setItem('userPersonality', userProfile.personality);
+    localStorage.setItem('userSpeakingStyle', JSON.stringify(userProfile.speakingStyle));
+    localStorage.setItem('userConversationHistory', JSON.stringify(userProfile.conversationHistory));
+    localStorage.setItem('userSvdProfile', JSON.stringify(userProfile.svdProfile));
+    localStorage.setItem('userAiAgent', JSON.stringify(userProfile.aiAgent));
+    localStorage.setItem('userProfileLastUpdated', userProfile.lastUpdated);
+}
+
+// 获取用户画像摘要
+function getProfileSummary() {
+    if (!userProfile.lastUpdated) {
+        return `👤 用户画像系统\n\n📝 我还不太了解你，请多和我聊天，我会逐渐了解你的说话风格和兴趣！\n\n💡 提示：\n• 输入"画像分析"查看详细分析\n• 输入"智能体"查看你的专属AI智能体\n• 多聊天让我更好地了解你~`;
+    }
+    
+    const svd = userProfile.svdProfile;
+    const style = userProfile.speakingStyle;
+    const topics = style.topics || [];
+    
+    let summary = `👤 用户画像摘要\n\n`;
+    
+    // 基本信息
+    if (userProfile.age) summary += `📊 年龄：${userProfile.age}岁\n`;
+    if (userProfile.gender) summary += `👤 性别：${userProfile.gender}\n`;
+    if (userProfile.personality) summary += `🎭 性格：${userProfile.personality}\n`;
+    
+    summary += `\n🗣️ 说话风格：\n`;
+    summary += `• 正式程度：${style.formality || 0}/10\n`;
+    summary += `• 情感表达：${style.emotion || 0}/10\n`;
+    summary += `• 语言复杂度：${style.complexity || 0}/10\n`;
+    summary += `• 礼貌程度：${style.politeness || 0}/10\n`;
+    summary += `• 幽默感：${style.humor || 0}/10\n`;
+    summary += `• 表情使用：${style.emoji || 0}/10\n`;
+    
+    if (topics.length > 0) {
+        summary += `\n🎯 感兴趣的话题：${topics.join('、')}\n`;
+    }
+    
+    summary += `\n📈 SVD维度：\n`;
+    if (svd.social) {
+        summary += `• 外向性：${svd.social.extroversion || 0}/10\n`;
+        summary += `• 宜人性：${svd.social.agreeableness || 0}/10\n`;
+        summary += `• 沟通能力：${svd.social.communication || 0}/10\n`;
+    }
+    
+    summary += `\n💡 输入"画像分析"查看详细分析，输入"智能体"查看你的专属AI智能体~`;
+    
+    return summary;
+}
+
+// 获取详细画像分析
+function getDetailedProfileAnalysis() {
+    if (!userProfile.lastUpdated) {
+        return `📊 画像分析\n\n❓ 我还需要更多对话数据来分析你的画像，请多和我聊天吧！`;
+    }
+    
+    const svd = userProfile.svdProfile;
+    const style = userProfile.speakingStyle;
+    const history = userProfile.conversationHistory;
+    
+    let analysis = `📊 详细画像分析\n\n`;
+    
+    // 对话统计
+    analysis += `📈 对话统计：\n`;
+    analysis += `• 总对话次数：${history.length}\n`;
+    analysis += `• 平均消息长度：${Math.round(style.length || 0)}/10\n`;
+    analysis += `• 最后更新：${new Date(userProfile.lastUpdated).toLocaleString()}\n\n`;
+    
+    // SVD详细分析
+    analysis += `🧠 SVD三维度分析：\n\n`;
+    
+    // 社交维度
+    if (svd.social) {
+        analysis += `👥 社交维度：\n`;
+        const extro = svd.social.extroversion || 0;
+        const agree = svd.social.agreeableness || 0;
+        const comm = svd.social.communication || 0;
+        
+        analysis += `• 外向性 (${extro}/10)：`;
+        if (extro > 7) analysis += `你很外向，善于表达情感\n`;
+        else if (extro > 4) analysis += `你比较外向，适度表达情感\n`;
+        else analysis += `你比较内敛，情感表达含蓄\n`;
+        
+        analysis += `• 宜人性 (${agree}/10)：`;
+        if (agree > 7) analysis += `你很友善，容易相处\n`;
+        else if (agree > 4) analysis += `你比较友善，平衡理性与情感\n`;
+        else analysis += `你比较直接，注重实用性\n`;
+        
+        analysis += `• 沟通能力 (${comm}/10)：`;
+        if (comm > 7) analysis += `你沟通能力强，表达清晰\n`;
+        else if (comm > 4) analysis += `你沟通能力良好，表达适中\n`;
+        else analysis += `你沟通简洁，表达直接\n`;
+    }
+    
+    // 价值观维度
+    if (svd.values) {
+        analysis += `\n💎 价值观维度：\n`;
+        const open = svd.values.openness || 0;
+        const cons = svd.values.conscientiousness || 0;
+        const creat = svd.values.creativity || 0;
+        
+        analysis += `• 开放性 (${open}/10)：`;
+        if (open > 7) analysis += `你很有好奇心，喜欢新事物\n`;
+        else if (open > 4) analysis += `你比较开放，适度接受新事物\n`;
+        else analysis += `你比较保守，喜欢稳定\n`;
+        
+        analysis += `• 尽责性 (${cons}/10)：`;
+        if (cons > 7) analysis += `你很负责任，注重规划\n`;
+        else if (cons > 4) analysis += `你比较负责，平衡规划与灵活\n`;
+        else analysis += `你比较灵活，注重当下\n`;
+        
+        analysis += `• 创造力 (${creat}/10)：`;
+        if (creat > 7) analysis += `你很有创造力，思维活跃\n`;
+        else if (creat > 4) analysis += `你比较有创意，思维灵活\n`;
+        else analysis += `你比较务实，思维理性\n`;
+    }
+    
+    // 发展维度
+    if (svd.development) {
+        analysis += `\n🌱 发展维度：\n`;
+        const learn = svd.development.learning || 0;
+        const adapt = svd.development.adaptability || 0;
+        const growth = svd.development.growth || 0;
+        
+        analysis += `• 学习能力 (${learn}/10)：`;
+        if (learn > 7) analysis += `你学习能力很强，求知欲旺盛\n`;
+        else if (learn > 4) analysis += `你学习能力良好，适度学习\n`;
+        else analysis += `你学习能力稳定，注重实践\n`;
+        
+        analysis += `• 适应性 (${adapt}/10)：`;
+        if (adapt > 7) analysis += `你适应能力很强，情绪稳定\n`;
+        else if (adapt > 4) analysis += `你适应能力良好，情绪较稳定\n`;
+        else analysis += `你适应能力稳定，注重调节\n`;
+        
+        analysis += `• 成长潜力 (${growth}/10)：`;
+        if (growth > 7) analysis += `你成长潜力很大，发展前景好\n`;
+        else if (growth > 4) analysis += `你成长潜力良好，发展稳定\n`;
+        else analysis += `你成长潜力稳定，注重积累\n`;
+    }
+    
+    analysis += `\n💡 输入"智能体"查看基于你画像生成的专属AI智能体~`;
+    
+    return analysis;
+}
+
+// 获取AI智能体信息
+function getAiAgentInfo() {
+    if (!userProfile.lastUpdated || !userProfile.aiAgent.personality) {
+        return `🤖 AI智能体\n\n❓ 我还需要更多对话数据来生成你的专属AI智能体，请多和我聊天吧！`;
+    }
+    
+    const agent = userProfile.aiAgent;
+    
+    let info = `🤖 你的专属AI智能体\n\n`;
+    
+    info += `🎭 智能体性格：${agent.personality}\n`;
+    info += `🗣️ 说话风格：${agent.speakingStyle}\n`;
+    info += `💬 回应模式：${agent.responsePattern}\n\n`;
+    
+    if (agent.specialFeatures && agent.specialFeatures.length > 0) {
+        info += `✨ 特殊功能：\n`;
+        agent.specialFeatures.forEach(feature => {
+            info += `• ${feature}\n`;
+        });
+        info += `\n`;
+    }
+    
+    if (agent.recommendations && agent.recommendations.length > 0) {
+        info += `💡 个性化推荐：\n`;
+        agent.recommendations.forEach(rec => {
+            info += `• ${rec}\n`;
+        });
+        info += `\n`;
+    }
+    
+    info += `🎯 基于你的画像，我会：\n`;
+    info += `• 调整回应风格以匹配你的偏好\n`;
+    info += `• 提供个性化的建议和推荐\n`;
+    info += `• 根据你的兴趣提供相关内容\n`;
+    info += `• 适应你的情感状态和需求\n`;
+    
+    return info;
+}
 
 // 智能回复增强功能
 function getEnhancedResponse(input, baseResponse) {
@@ -1224,6 +1808,11 @@ function getEnhancedResponse(input, baseResponse) {
     
     let enhancedResponse = baseResponse;
     
+    // 根据用户画像进行个性化回应
+    if (userProfile.lastUpdated && userProfile.aiAgent.personality) {
+        enhancedResponse = personalizeResponse(enhancedResponse, userProfile.aiAgent);
+    }
+    
     // 根据心情添加个性化建议
     if (mood === 'sad') {
         enhancedResponse += `\n\n💝 看到你心情不太好，要不要听听音乐放松一下？或者和我聊聊，我会一直陪着你~`;
@@ -1241,6 +1830,48 @@ function getEnhancedResponse(input, baseResponse) {
     }
     
     return enhancedResponse;
+}
+
+// 根据用户画像个性化回应
+function personalizeResponse(response, aiAgent) {
+    let personalizedResponse = response;
+    
+    // 根据AI智能体性格调整回应风格
+    if (aiAgent.personality === '活泼开朗型') {
+        // 添加更多表情符号和感叹号
+        personalizedResponse = personalizedResponse.replace(/。/g, '！');
+        personalizedResponse = personalizedResponse.replace(/。/g, '~');
+        if (!personalizedResponse.includes('😊') && !personalizedResponse.includes('😄')) {
+            personalizedResponse = '😊 ' + personalizedResponse;
+        }
+    } else if (aiAgent.personality === '沉稳内敛型') {
+        // 减少表情符号，使用更正式的语言
+        personalizedResponse = personalizedResponse.replace(/[😊😄😍🥰😎🎉✨❤️]/g, '');
+        personalizedResponse = personalizedResponse.replace(/~/g, '。');
+    }
+    
+    // 根据特殊功能添加个性化内容
+    if (aiAgent.specialFeatures && aiAgent.specialFeatures.length > 0) {
+        if (aiAgent.specialFeatures.includes('善于鼓励和安慰')) {
+            personalizedResponse += '\n\n💪 我相信你可以的！加油！';
+        }
+        if (aiAgent.specialFeatures.includes('理性分析和情感支持并重')) {
+            personalizedResponse += '\n\n🤔 从理性角度分析，同时也要照顾到你的感受~';
+        }
+        if (aiAgent.specialFeatures.includes('提供实用建议和解决方案')) {
+            personalizedResponse += '\n\n💡 这里有几个实用的建议供你参考：';
+        }
+    }
+    
+    // 根据个性化推荐添加内容
+    if (aiAgent.recommendations && aiAgent.recommendations.length > 0) {
+        const randomRec = getRandom(aiAgent.recommendations);
+        if (Math.random() < 0.3) { // 30%概率添加推荐
+            personalizedResponse += `\n\n💡 基于你的兴趣，我推荐：${randomRec}`;
+        }
+    }
+    
+    return personalizedResponse;
 }
 
 // 智能天气建议功能
@@ -1810,40 +2441,6 @@ const localKnowledge = {
 
 // 功能按钮处理函数 - 最高优先级
 function handleButtonCommand(input) {
-    // 结束对话进程（除了互动性游戏）
-    // 检查是否在非游戏模式下，如果是则结束当前对话
-    if (!riddleMode && !chengyuMode && !rpsMode && !guessNumberMode && !storyMode) {
-        // 重置所有对话相关变量
-        gameInvitationMode = false;
-        roleplayMode = false;
-        currentRole = '';
-        storyContext = '';
-        storyMode = false;
-        moodDiary = [];
-        wishList = [];
-        
-        // 重置游戏相关变量（除了当前活跃的游戏）
-        if (!riddleMode) {
-            lastRiddle = null;
-            riddleAttempts = 0;
-        }
-        if (!chengyuMode) {
-            lastChengyu = '';
-            chengyuAttempts = 0;
-            usedChengyu = [];
-        }
-        if (!rpsMode) {
-            // rpsMode没有额外变量需要重置
-        }
-        if (!guessNumberMode) {
-            targetNumber = 0;
-            guessAttempts = 0;
-        }
-        
-        // 记录结束对话的统计
-        searchStats.buttonCommands++;
-        console.log("🔄 按钮命令结束对话进程");
-    }
     
     // 贴贴功能
     if (["贴贴我", "抱抱我", "安慰我", "给我贴贴"].includes(input)) {
@@ -2024,12 +2621,33 @@ function handleButtonCommand(input) {
         return getRandom(fortunes) + " " + getRandom(cuteAscii);
     }
     
+    // 用户画像功能 - 最高优先级
+    if (["用户画像", "你了解我吗", "我的兴趣"].includes(input)) {
+        return getProfileSummary();
+    }
+    
+    // 画像分析功能
+    if (["画像分析", "分析我的画像", "我的画像分析"].includes(input)) {
+        return getDetailedProfileAnalysis();
+    }
+    
+    // 智能体功能
+    if (["智能体", "我的智能体", "AI智能体"].includes(input)) {
+        return getAiAgentInfo();
+    }
+    
+    // 画像设置功能
+    if (["画像设置", "用户画像设置", "画像配置"].includes(input)) {
+        openProfilePanel();
+        return "已打开用户画像设置面板，你可以在面板中设置基本信息并查看分析结果~";
+    }
+    
     // 彩虹屁生成功能
     if (["彩虹屁生成", "彩虹屁", "夸夸我"].includes(input)) {
         const rainbowPuffs = [
             "你是宇宙中最闪亮的星星，连太阳都要向你学习！",
             "你的笑容比彩虹还要美丽，连花儿都要为你绽放！",
-            "你是世界上最可爱的小天使，连云朵都要为你跳舞！",
+            "你是世界上最可爱的小笨蛋，连云朵都要为你跳舞！",
             "你的声音比百灵鸟还要动听，连风儿都要为你停留！",
             "你是最棒的小宝贝，连月亮都要为你发光！",
             "你的眼睛比钻石还要闪耀，连星星都要为你眨眼！",
@@ -2085,7 +2703,9 @@ function handleButtonCommand(input) {
     
     // 添加知识功能
     if (["添加知识", "教我", "学习新知识"].includes(input)) {
-        return `💡 添加知识功能：\n你可以教我新的问答，格式如下：\n"问题：你的问题"\n"回答：我的回答"\n\n例如：\n"问题：什么是人工智能"\n"回答：人工智能是让机器模拟人类智能的技术~"\n\n我会记住你教我的知识，下次就能直接回答啦！`;
+    addKnowledgeMode = true;
+    localStorage.setItem('addKnowledgeMode', 'true');
+    return `💡 添加知识功能：<br>你可以教我新的问答，格式如下：<br>“问题：你的问题”<br>“回答：我的回答”<br><br>例如：<br>“问题：什么是人工智能”<br>“回答：人工智能是让机器模拟人类智能的技术~”<br><br>我会记住你教我的知识，下次就能直接回答啦！<br>（输入“取消”可退出添加知识模式）`;
     }
     
     // 我的知识功能
@@ -2115,7 +2735,7 @@ function handleButtonCommand(input) {
     // 可爱昵称生成功能
     if (["可爱昵称", "起个昵称"].includes(input)) {
         const nicknames = [
-            "小甜心", "小天使", "小宝贝", "小可爱", "小公主", "小王子",
+            "小甜心", "小笨蛋", "小宝贝", "小可爱", "小公主", "小王子",
             "小猫咪", "小兔子", "小熊猫", "小海豚", "小蝴蝶", "小星星",
             "小彩虹", "小云朵", "小花朵", "小糖果", "小蛋糕", "小布丁"
         ];
@@ -2125,7 +2745,7 @@ function handleButtonCommand(input) {
     // 可爱昵称生成功能
     if (["可爱昵称", "起个昵称"].includes(input)) {
         const nicknames = [
-            "小甜心", "小天使", "小宝贝", "小可爱", "小公主", "小王子",
+            "小甜心", "小笨蛋", "小宝贝", "小可爱", "小公主", "小王子",
             "小猫咪", "小兔子", "小熊猫", "小海豚", "小蝴蝶", "小星星",
             "小彩虹", "小云朵", "小花朵", "小糖果", "小蛋糕", "小布丁"
         ];
@@ -2137,7 +2757,7 @@ function handleButtonCommand(input) {
     
     // 其他功能按钮的处理
     const otherFunctions = {
-        "夸夸我": ["你是世界上最可爱的小天使，连云朵都要为你跳舞！", "你是宇宙最靓的崽，连星星都要为你闪烁！", "你是人间小甜心，连月亮都要为你微笑！"],
+        "夸夸我": ["你是世界上最可爱的小笨蛋，连云朵都要为你跳舞！", "你是宇宙最靓的崽，连星星都要为你闪烁！", "你是人间小甜心，连月亮都要为你微笑！"],
         "黑我": ["你这个小笨蛋，连bug都比你聪明！", "你这个小可爱，连代码都比你可爱！", "你这个小傻瓜，连AI都比你傻！"],
         "今日运势": ["今天运势超棒！会遇到好事！", "今天运势不错，心情会很好！", "今天运势一般，但会有小惊喜！"],
         "安慰我": ["不要难过，一切都会好起来的~", "我陪着你，你不是一个人~", "抱抱你，给你力量~"],
@@ -2240,17 +2860,19 @@ function handleButtonCommand(input) {
     
     // 故事接龙功能
     if (["故事接龙", "来编故事"].includes(input)) {
-        const storyStarts = [
-            "从前有一只可爱的小猫，它住在彩虹森林里...",
-            "很久很久以前，有一个小女孩，她有一个神奇的魔法棒...",
-            "在一个遥远的星球上，住着一群会发光的小精灵...",
-            "从前有一座会飞的城堡，里面住着一位善良的公主...",
-            "很久以前，有一只会说话的小兔子，它喜欢帮助别人..."
-        ];
-        storyContext = getRandom(storyStarts);
-        storyMode = true;
-        return `📖 故事开始：${storyContext} 你继续讲~`;
-    }
+    const storyStarts = [
+        "从前有一只可爱的小猫，它住在彩虹森林里...",
+        "很久很久以前，有一个小女孩，她有一个神奇的魔法棒...",
+        "在一个遥远的星球上，住着一群会发光的小精灵...",
+        "从前有一座会飞的城堡，里面住着一位善良的公主...",
+        "很久以前，有一只会说话的小兔子，它喜欢帮助别人..."
+    ];
+    storyContext = getRandom(storyStarts);
+    storyMode = true;
+    localStorage.setItem('storyMode', 'true');
+    localStorage.setItem('storyContext', storyContext);
+    return `📖 故事开始：${storyContext} 你继续讲~`;
+}
     
     // 角色扮演功能
     if (["角色扮演", "扮演角色"].includes(input)) {
@@ -2624,46 +3246,6 @@ function getContextualResponse(input) {
         guessAttempts = 0;
         return `恭喜你猜对了！答案就是${targetNumber}！用了${used}次就猜到了，真厉害！(｡>∀<｡)`;
     }
-        
-        // 故事接龙模式
-    if (storyMode) {
-        storyContext += ' ' + input;
-        
-        // 检查是否要结束故事（用户输入结束相关词汇）
-        const endKeywords = ['结束', '完了', '结束吧', '就这样', '好了', '结束故事', '故事结束'];
-        if (endKeywords.some(keyword => input.includes(keyword))) {
-            const storyEndings = [
-                "从此，他们过上了幸福快乐的生活~",
-                "这个故事告诉我们，友谊是最珍贵的宝藏！",
-                "最后，大家都学会了分享和关爱~",
-                "他们成为了最好的朋友，每天都很开心~",
-                "这个故事传遍了整个森林，成为了经典~",
-                "故事到这里就结束了，真是一个美好的故事呢~",
-                "从此以后，他们过上了幸福美满的生活~",
-                "这个故事告诉我们，善良和勇气是最重要的~",
-                "最后，大家都明白了友情的珍贵~",
-                "他们成为了永远的伙伴，一起面对未来的挑战~"
-            ];
-            storyMode = false;
-            return `📖 故事结束：${storyContext}... ${getRandom(storyEndings)} ${getRandom(cuteAscii)}`;
-        }
-        
-        // 继续故事，AI添加一些内容
-        const storyContinuations = [
-            "然后呢？",
-            "接下来发生了什么？",
-            "真有趣，继续讲吧~",
-            "哇，好精彩！然后呢？",
-            "太棒了，故事越来越有趣了！",
-            "继续继续，我想听更多~",
-            "这个故事真有意思，接下来呢？",
-            "好期待后面的发展啊~",
-            "太精彩了，请继续~",
-            "故事越来越吸引人了，然后呢？"
-        ];
-        
-        return `📖 故事继续：${storyContext}... ${getRandom(storyContinuations)}`;
-    }
     }
     
     // 普通上下文回复（非游戏模式）
@@ -2688,6 +3270,47 @@ function getContextualResponse(input) {
 
 function getAIResponse(input) {
     interactionCount++;
+    if (storyMode) {
+    storyContext += ' ' + input;
+    localStorage.setItem('storyContext', storyContext);
+    const endKeywords = ['结束', '完了', '结束吧', '就这样', '好了', '结束故事', '故事结束'];
+    if (endKeywords.some(keyword => input.includes(keyword))) {
+        const storyEndings = [
+            "从此，他们过上了幸福快乐的生活~",
+            "这个故事告诉我们，友谊是最珍贵的宝藏！",
+            "最后，大家都学会了分享和关爱~",
+            "他们成为了最好的朋友，每天都很开心~",
+            "这个故事传遍了整个森林，成为了经典~",
+            "故事到这里就结束了，真是一个美好的故事呢~",
+            "从此以后，他们过上了幸福美满的生活~",
+            "这个故事告诉我们，善良和勇气是最重要的~",
+            "最后，大家都明白了友情的珍贵~",
+            "他们成为了永远的伙伴，一起面对未来的挑战~"
+        ];
+        storyMode = false;
+        localStorage.setItem('storyMode', 'false');
+        localStorage.setItem('storyContext', '');
+        return `📖 故事结束：${storyContext}... ${getRandom(storyEndings)} ${getRandom(cuteAscii)}`;
+    }
+    const storyContinuations = [
+        "然后呢？",
+        "接下来发生了什么？",
+        "真有趣，继续讲吧~",
+        "哇，好精彩！然后呢？",
+        "太棒了，故事越来越有趣了！",
+        "继续继续，我想听更多~",
+        "这个故事真有意思，接下来呢？",
+        "好期待后面的发展啊~",
+        "太精彩了，请继续~",
+        "故事越来越吸引人了，然后呢？"
+    ];
+    localStorage.setItem('storyMode', 'true');
+    localStorage.setItem('storyContext', storyContext);
+    return `📖 故事继续：${storyContext}... ${getRandom(storyContinuations)}`;
+}
+    // 优先处理添加知识模式
+    if (addKnowledgeMode) {
+    }
     searchStats.totalInteractions++;
     
     // ====== 表情专属回复映射表 ======
@@ -2950,7 +3573,7 @@ function getAIResponse(input) {
         }
     }
     
-    // 游戏模式检测 - 第二优先级（包括成语接龙、脑筋急转弯等）
+    // 游戏模式检测 - 第二优先级（包括成语接龙、脑筋急转弯、故事接龙等）
     if (riddleMode || chengyuMode || rpsMode || guessNumberMode || storyMode) {
         console.log("🎮 检测到游戏模式，优先处理游戏逻辑");
         searchStats.localMatches++;
@@ -2960,6 +3583,78 @@ function getAIResponse(input) {
         const gameResponse = getContextualResponse(input);
         if (gameResponse) {
             return emojiReplyStr ? (emojiReplyStr + gameResponse) : gameResponse;
+        }
+    }
+    
+    // 添加知识功能 - 第三优先级（在本地库匹配之前）
+    if (["添加知识", "教我", "学习新知识"].includes(input)) {
+    addKnowledgeMode = true;
+    localStorage.setItem('addKnowledgeMode', 'true');
+    return `💡 添加知识功能：<br>你可以教我新的问答，格式如下：<br>“问题：你的问题”<br>“回答：我的回答”<br><br>例如：<br>“问题：什么是人工智能”<br>“回答：人工智能是让机器模拟人类智能的技术~”<br><br>我会记住你教我的知识，下次就能直接回答啦！<br>（输入“取消”可退出添加知识模式）`;
+}
+    
+    // 处理知识添加
+    if (input.includes("问题：") && input.includes("回答：")) {
+        const questionMatch = input.match(/问题：(.+?)(?=回答：)/);
+        const answerMatch = input.match(/回答：(.+)/);
+        
+        if (questionMatch && answerMatch) {
+            const question = questionMatch[1].trim();
+            const answer = answerMatch[1].trim();
+            
+            // 添加到本地知识库
+            if (!localKnowledge[question]) {
+                localKnowledge[question] = [];
+            }
+            localKnowledge[question].push(answer);
+            
+            // 保存到本地存储
+            try {
+                const savedKnowledge = JSON.parse(localStorage.getItem('localKnowledge') || '{}');
+                if (!savedKnowledge[question]) {
+                    savedKnowledge[question] = [];
+                }
+                savedKnowledge[question].push(answer);
+                localStorage.setItem('localKnowledge', JSON.stringify(savedKnowledge));
+            } catch (e) {
+                console.log("保存知识失败:", e);
+            }
+            
+            console.log("✅ 新知识已添加:", question, "->", answer);
+            const normalReply = `✅ 学习成功！我已经记住啦~<br>
+            📝 问题：${question}<br>
+            💡 回答：${answer}<br>
+            <br>下次你问类似的问题，我就能直接回答啦！`;
+            return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
+        }
+    }
+    
+    // 查看我的知识
+    if (["我的知识", "查看知识", "知识库"].includes(input)) {
+        try {
+            const savedKnowledge = JSON.parse(localStorage.getItem('localKnowledge') || '{}');
+            const knowledgeCount = Object.keys(savedKnowledge).length;
+            
+            if (knowledgeCount === 0) {
+                const normalReply = `📚 我的知识库：<br>
+                📝 目前还没有保存的知识~<br>
+                <br>💡 你可以点击"添加知识"按钮教我新知识哦！`;
+                return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
+            }
+            
+            let knowledgeList = `📚 我的知识库 (共${knowledgeCount}个)：<br><br>`;
+            let index = 1;
+            for (let question in savedKnowledge) {
+                knowledgeList += `${index}. 📝 问题：${question}<br>`;
+                knowledgeList += `   💡 回答：${savedKnowledge[question].join(' | ')}<br><br>`;
+                index++;
+            }
+            
+            const normalReply = knowledgeList + `💡 这些知识我都会记住，下次你问类似的问题我就能直接回答啦！`;
+            return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
+        } catch (e) {
+            const normalReply = `❌ 查看知识失败：${e.message}`;
+            return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
         }
     }
     
@@ -3011,6 +3706,15 @@ function getAIResponse(input) {
         // 当检测到表情时，直接返回表情回复，不进行联网搜索
         const defaultEmojiReply = "看到你的表情，我也很开心呢！有什么想和我分享的吗？";
         return emojiReplyStr + defaultEmojiReply + " " + getRandom(cuteAscii);
+    }
+    
+    // --- 修复多轮对话被打断问题 ---
+    if (riddleMode || chengyuMode || rpsMode || guessNumberMode || storyMode) {
+        // 处于多轮对话/游戏模式时，禁止联网搜索，强制走本地多轮逻辑
+        const gameResponse = getContextualResponse(input);
+        if (gameResponse) {
+            return emojiReplyStr ? (emojiReplyStr + gameResponse) : gameResponse;
+        }
     }
     
     // 联网搜索功能（仅当本地库完全无法匹配时）- 最低优先级
@@ -3085,11 +3789,6 @@ function getAIResponse(input) {
         const normalReply = "你可以多和我聊聊你的兴趣，我会给你推荐的！";
         return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
     }
-    // 用户画像
-    if (["用户画像", "你了解我吗", "我的兴趣"].includes(input)) {
-        const normalReply = getProfileSummary();
-        return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
-    }
     // 对话摘要
     if (["对话摘要", "聊天记录", "总结一下"].includes(input)) {
         const normalReply = conversationHistory.slice(-10).map((item,i)=>`${i+1}. ${item[0]}: ${item[1]}`).join('<br>') || '还没有对话记录';
@@ -3119,81 +3818,7 @@ function getAIResponse(input) {
         📚 当前本地知识库大小：${Object.keys(localKnowledge).length} 个关键词`;
         return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
     }
-    // 添加知识到本地库
-    if (["添加知识", "教我", "学习新知识"].includes(input)) {
-        const normalReply = `💡 添加知识功能：<br>
-        你可以教我新的问答，格式如下：<br>
-        "问题：你的问题"<br>
-        "回答：我的回答"<br>
-        <br>例如：<br>
-        "问题：什么是人工智能"<br>
-        "回答：人工智能是让机器模拟人类智能的技术~"<br>
-        <br>我会记住你教我的知识，下次就能直接回答啦！`;
-        return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
-    }
-    // 处理知识添加
-    if (input.includes("问题：") && input.includes("回答：")) {
-        const questionMatch = input.match(/问题：(.+?)(?=回答：)/);
-        const answerMatch = input.match(/回答：(.+)/);
-        
-        if (questionMatch && answerMatch) {
-            const question = questionMatch[1].trim();
-            const answer = answerMatch[1].trim();
-            
-            // 添加到本地知识库
-            if (!localKnowledge[question]) {
-                localKnowledge[question] = [];
-            }
-            localKnowledge[question].push(answer);
-            
-            // 保存到本地存储
-            try {
-                const savedKnowledge = JSON.parse(localStorage.getItem('localKnowledge') || '{}');
-                if (!savedKnowledge[question]) {
-                    savedKnowledge[question] = [];
-                }
-                savedKnowledge[question].push(answer);
-                localStorage.setItem('localKnowledge', JSON.stringify(savedKnowledge));
-            } catch (e) {
-                console.log("保存知识失败:", e);
-            }
-            
-            console.log("✅ 新知识已添加:", question, "->", answer);
-            const normalReply = `✅ 学习成功！我已经记住啦~<br>
-            📝 问题：${question}<br>
-            💡 回答：${answer}<br>
-            <br>下次你问类似的问题，我就能直接回答啦！`;
-            return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
-        }
-    }
-    // 查看我的知识
-    if (["我的知识", "查看知识", "知识库"].includes(input)) {
-        try {
-            const savedKnowledge = JSON.parse(localStorage.getItem('localKnowledge') || '{}');
-            const knowledgeCount = Object.keys(savedKnowledge).length;
-            
-            if (knowledgeCount === 0) {
-                const normalReply = `📚 我的知识库：<br>
-                📝 目前还没有保存的知识~<br>
-                <br>💡 你可以点击"添加知识"按钮教我新知识哦！`;
-                return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
-            }
-            
-            let knowledgeList = `📚 我的知识库 (共${knowledgeCount}个)：<br><br>`;
-            let index = 1;
-            for (let question in savedKnowledge) {
-                knowledgeList += `${index}. 📝 问题：${question}<br>`;
-                knowledgeList += `   💡 回答：${savedKnowledge[question].join(' | ')}<br><br>`;
-                index++;
-            }
-            
-            const normalReply = knowledgeList + `💡 这些知识我都会记住，下次你问类似的问题我就能直接回答啦！`;
-            return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
-        } catch (e) {
-            const normalReply = `❌ 查看知识失败：${e.message}`;
-            return emojiReplyStr ? (emojiReplyStr + normalReply) : normalReply;
-        }
-    }
+
     // 游戏邀请模式处理
     if (gameInvitationMode) {
         gameInvitationMode = false;
@@ -3265,6 +3890,7 @@ function sendConfetti() {
     }
 }
 function sendMsg() {
+    const userInput = document.getElementById('user-input');
     const input = userInput.value.trim();
     if (!input) return;
     // 每次对话开始时随机更新AI表情
@@ -3274,11 +3900,24 @@ function sendMsg() {
     userInput.value = '';
     userInput.focus();
     sendConfetti(); // 新增：发送消息时飘落特效
-            setTimeout(()=>{
-            const aiReply = getAIResponse(input);
-            addMsg(aiReply, 'bot');
-            conversationHistory.push(['HAOKUN', aiReply]);
-        }, 400);
+    autoExtractProfile(input);
+    // 分析用户画像
+    analyzeUserProfile(input);
+    // 修复：每次输入都恢复模式状态
+    storyMode = JSON.parse(localStorage.getItem('storyMode') || 'false');
+    storyContext = localStorage.getItem('storyContext') || '';
+    addKnowledgeMode = JSON.parse(localStorage.getItem('addKnowledgeMode') || 'false');
+    gameInvitationMode = JSON.parse(localStorage.getItem('gameInvitationMode') || 'false');
+    riddleMode = JSON.parse(localStorage.getItem('riddleMode') || 'false');
+    riddleAttempts = parseInt(localStorage.getItem('riddleAttempts') || '0');
+    lastRiddle = JSON.parse(localStorage.getItem('lastRiddle') || '[]');
+    chengyuMode = JSON.parse(localStorage.getItem('chengyuMode') || 'false');
+    chengyuAttempts = parseInt(localStorage.getItem('chengyuAttempts') || '0');
+    setTimeout(()=>{
+        const aiReply = getAIResponse(input);
+        addMsg(aiReply, 'bot');
+        conversationHistory.push(['HAOKUN', aiReply]);
+    }, 400);
 }
 document.getElementById('send-btn').onclick = sendMsg;
 document.getElementById('user-input').onkeydown = function(e){if(e.key==='Enter')sendMsg();};
@@ -3291,10 +3930,14 @@ window.addEventListener('load', function() {
     localStorage.setItem('totalSessions', userProgress.totalSessions.toString());
     localStorage.setItem('lastActive', userProgress.lastActive);
     
+    // 渲染粉色按钮面板
+    renderCutePanel();
+    renderFavPanel();
+    
     // 显示个性化欢迎消息
     setTimeout(() => {
         const greeting = getTimeBasedGreeting();
-        const welcomeMsg = `欢迎使用小笨蛋AI - HAOKUN工作室！🎉\n\n${greeting}\n\n✨ 新功能：\n🎲 随机模块提示 - 一键获取本地库建议\n😊 表情专属回复 - 200+种表情智能回复\n🎯 智能优先级系统 - 更精准的响应机制\n🧠 智能心情分析 - 根据心情提供个性化建议\n🌤️ 智能天气建议 - 根据时间给出合适建议\n\n试试点击🎲按钮或输入表情吧~\n\n💝 感谢李昊坤创造了我，让我能够陪伴大家！`;
+        const welcomeMsg = `欢迎使用小笨蛋AI - HAOKUN工作室！🎉\n\n${greeting}\n\n✨ 新功能：\n🎲 随机模块提示 - 一键获取本地库建议\n😊 表情专属回复 - 200+种表情智能回复\n🎯 智能优先级系统 - 更精准的响应机制\n🧠 智能心情分析 - 根据心情提供个性化建议\n🌤️ 智能天气建议 - 根据时间给出合适建议\n👤 用户画像系统 - 智能分析你的说话风格\n\n试试点击🎲按钮或输入表情吧~\n\n💝 感谢李昊坤创造了我，让我能够陪伴大家！`;
         addMsg(welcomeMsg, 'bot');
     }, 500);
 });
@@ -3431,7 +4074,10 @@ const defaultFuncs = [
     {emoji:'🏠', name:'生活建议', cmd:'生活'},
     {emoji:'📊', name:'搜索统计', cmd:'搜索统计'},
     {emoji:'➕', name:'添加知识', cmd:'添加知识'},
-    {emoji:'📚', name:'我的知识', cmd:'我的知识'}
+    {emoji:'📚', name:'我的知识', cmd:'我的知识'},
+    {emoji:'👤', name:'用户画像', cmd:'用户画像'},
+    {emoji:'📊', name:'画像分析', cmd:'画像分析'},
+    {emoji:'🤖', name:'智能体', cmd:'智能体'}
 ];
 let funcBtns = JSON.parse(localStorage.getItem('funcBtns')||'null') || defaultFuncs.slice();
 let favCmds = JSON.parse(localStorage.getItem('favCmds')||'null') || [];
@@ -3531,7 +4177,8 @@ function renderCutePanel() {
         btn.innerHTML = funcBtns[i].emoji+' '+funcBtns[i].name;
         btn.dataset.cmd = funcBtns[i].cmd;
         btn.onclick = ()=>{
-            document.getElementById('user-input').value = funcBtns[i].cmd;
+            const userInput = document.getElementById('user-input');
+            userInput.value = funcBtns[i].cmd;
             sendMsg();
         };
         // 收藏按钮
@@ -3756,7 +4403,14 @@ document.getElementById('emoji-btn').onclick = function(e){
     });
     e.stopPropagation();
 };
-document.body.addEventListener('click',()=>{emojiPanel.style.display='none';});
+document.body.addEventListener('click',(e)=>{
+    // 检查是否点击了画像设置面板内的元素
+    const profilePanel = document.getElementById('profile-panel');
+    if (profilePanel && profilePanel.contains(e.target)) {
+        return; // 不处理画像设置面板内的点击
+    }
+    emojiPanel.style.display='none';
+});
 emojiPanel.addEventListener('click',e=>e.stopPropagation());
 // 设置弹窗功能区自定义
 function renderFuncEditList() {
@@ -3832,9 +4486,12 @@ function getCuteMix() {
 // 手机输入框聚焦时滚动到输入区，避免被键盘遮挡
 const inputArea = document.getElementById('input-area');
 userInput.addEventListener('focus', function() {
-    setTimeout(()=>{
-        inputArea.scrollIntoView({behavior:'smooth', block:'center'});
-    }, 200);
+    // 只有在主聊天输入框时才滚动
+    if (document.activeElement === userInput) {
+        setTimeout(()=>{
+            inputArea.scrollIntoView({behavior:'smooth', block:'center'});
+        }, 200);
+    }
 });
 // 爱心爆炸粒子特效函数
 function heartExplosion(x, y, parent) {
@@ -3892,6 +4549,12 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     // 聊天区AI头像点击也有爱心爆炸
     document.body.addEventListener('click',function(ev){
+        // 检查是否点击了画像设置面板内的元素
+        const profilePanel = document.getElementById('profile-panel');
+        if (profilePanel && profilePanel.contains(ev.target)) {
+            return; // 不处理画像设置面板内的点击
+        }
+        
         if(ev.target.classList.contains('bot-avatar')){
             const rect = ev.target.getBoundingClientRect();
             heartExplosion(rect.left+rect.width/2, rect.top+rect.height/2, document.body);
@@ -3917,11 +4580,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('chat-container').appendChild(paw);
     const input = document.getElementById('user-input');
     input.addEventListener('focus',function(){
-        paw.style.display = 'block';
-        paw.style.animation = 'none';
-        // 触发重绘
-        void paw.offsetWidth;
-        paw.style.animation = '';
+        // 只有在主聊天输入框时才显示猫爪动画
+        if (document.activeElement === input) {
+            paw.style.display = 'block';
+            paw.style.animation = 'none';
+            // 触发重绘
+            void paw.offsetWidth;
+            paw.style.animation = '';
+        }
     });
     input.addEventListener('blur',function(){
         paw.style.display = 'none';
@@ -4372,6 +5038,403 @@ function extractKeywords(input) {
 
 
 // 智能匹配函数
+
+// 用户画像设置相关函数
+function openProfilePanel() {
+    const panel = document.getElementById('profile-panel');
+    if (panel) {
+        panel.style.display = 'block';
+        
+        // 为画像设置面板添加特殊的事件隔离
+        panel.addEventListener('click', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        panel.addEventListener('focus', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        panel.addEventListener('blur', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        loadProfileSettings();
+        // 延迟更新显示，避免输入框闪退
+        setTimeout(() => {
+            updateProfileDisplay();
+        }, 100);
+    }
+}
+
+function closeProfilePanel() {
+    document.getElementById('profile-panel').style.display = 'none';
+}
+
+function loadProfileSettings() {
+    const ageInput = document.getElementById('profile-age');
+    const genderSelect = document.getElementById('profile-gender');
+    const personalityInput = document.getElementById('profile-personality');
+    
+    if (userProfile.age) ageInput.value = userProfile.age;
+    if (userProfile.gender) genderSelect.value = userProfile.gender;
+    if (userProfile.personality) personalityInput.value = userProfile.personality;
+    
+    // 为画像设置面板的输入框添加特殊处理，防止键盘闪退
+    [ageInput, genderSelect, personalityInput].forEach(input => {
+        if (input) {
+            // 移除之前的事件监听器（如果存在）
+            if (input._profileFocusHandler) {
+                input.removeEventListener('focus', input._profileFocusHandler);
+                input.removeEventListener('blur', input._profileBlurHandler);
+                input.removeEventListener('click', input._profileClickHandler);
+                input.removeEventListener('input', input._profileInputHandler);
+                input.removeEventListener('touchstart', input._profileTouchHandler);
+            }
+            
+            // 创建新的事件处理器 - 专门防止键盘闪退
+            input._profileFocusHandler = function(e) {
+                e.stopPropagation();
+                // 确保输入框获得焦点后系统键盘保持稳定
+                setTimeout(() => {
+                    if (this === document.activeElement) {
+                        // 输入框仍然有焦点，确保键盘不会闪退
+                        this.focus();
+                    }
+                }, 50);
+                console.log('画像设置输入框获得焦点:', input.id);
+            };
+            
+            input._profileBlurHandler = function(e) {
+                e.stopPropagation();
+                // 防止意外失去焦点
+                if (this === document.activeElement) {
+                    setTimeout(() => {
+                        if (this !== document.activeElement) {
+                            this.focus();
+                        }
+                    }, 10);
+                }
+                console.log('画像设置输入框失去焦点:', input.id);
+            };
+            
+            input._profileClickHandler = function(e) {
+                e.stopPropagation();
+                // 确保点击后输入框保持焦点
+                setTimeout(() => {
+                    if (this !== document.activeElement) {
+                        this.focus();
+                    }
+                }, 10);
+                console.log('画像设置输入框被点击:', input.id);
+            };
+            
+            input._profileInputHandler = function(e) {
+                e.stopPropagation();
+                // 输入过程中确保焦点不丢失
+                if (this !== document.activeElement) {
+                    this.focus();
+                }
+                console.log('画像设置输入框输入:', input.id, input.value);
+            };
+            
+            // 移动端触摸事件处理
+            input._profileTouchHandler = function(e) {
+                e.stopPropagation();
+                // 触摸后确保输入框获得焦点
+                setTimeout(() => {
+                    if (this !== document.activeElement) {
+                        this.focus();
+                    }
+                }, 50);
+            };
+            
+            // 添加事件监听器
+            input.addEventListener('focus', input._profileFocusHandler, true);
+            input.addEventListener('blur', input._profileBlurHandler, true);
+            input.addEventListener('click', input._profileClickHandler, true);
+            input.addEventListener('input', input._profileInputHandler, true);
+            input.addEventListener('touchstart', input._profileTouchHandler, true);
+        }
+    });
+}
+
+function saveProfileSettings() {
+    const age = document.getElementById('profile-age').value;
+    const gender = document.getElementById('profile-gender').value;
+    const personality = document.getElementById('profile-personality').value;
+    
+    userProfile.age = age || null;
+    userProfile.gender = gender || null;
+    userProfile.personality = personality || null;
+    
+    saveUserProfile();
+    
+    // 延迟更新显示，避免键盘闪退
+    setTimeout(() => {
+        updateProfileDisplay();
+    }, 200);
+    
+    // 显示保存成功消息
+    const saveBtn = document.querySelector('.save-btn');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = '✅ 已保存';
+    saveBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+    
+    setTimeout(() => {
+        saveBtn.textContent = originalText;
+        saveBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    }, 2000);
+}
+
+function resetProfile() {
+    if (confirm('确定要重置用户画像吗？这将清除所有分析数据。')) {
+        userProfile = {
+            age: null,
+            gender: null,
+            personality: null,
+            speakingStyle: {},
+            conversationHistory: [],
+            svdProfile: {},
+            aiAgent: {},
+            lastUpdated: null
+        };
+        
+        // 清除本地存储
+        localStorage.removeItem('userAge');
+        localStorage.removeItem('userGender');
+        localStorage.removeItem('userPersonality');
+        localStorage.removeItem('userSpeakingStyle');
+        localStorage.removeItem('userConversationHistory');
+        localStorage.removeItem('userSvdProfile');
+        localStorage.removeItem('userAiAgent');
+        localStorage.removeItem('userProfileLastUpdated');
+        
+        updateProfileDisplay();
+        loadProfileSettings();
+        
+        // 显示重置成功消息
+        const resetBtn = document.querySelector('.reset-btn');
+        const originalText = resetBtn.textContent;
+        resetBtn.textContent = '✅ 已重置';
+        resetBtn.style.background = '#28a745';
+        resetBtn.style.color = 'white';
+        
+        setTimeout(() => {
+            resetBtn.textContent = originalText;
+            resetBtn.style.background = '#f8f9fa';
+            resetBtn.style.color = '#666';
+        }, 2000);
+    }
+}
+
+function updateProfileDisplay() {
+    const style = userProfile.speakingStyle;
+    const svd = userProfile.svdProfile;
+    const agent = userProfile.aiAgent;
+    
+    // 保存当前焦点元素和光标位置
+    const activeElement = document.activeElement;
+    let cursorPosition = null;
+    let isProfileInput = false;
+    
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'SELECT')) {
+        isProfileInput = activeElement.id === 'profile-age' || 
+                        activeElement.id === 'profile-gender' || 
+                        activeElement.id === 'profile-personality';
+        if (activeElement.tagName === 'INPUT') {
+            cursorPosition = activeElement.selectionStart;
+        }
+    }
+    
+    // 如果当前焦点在画像设置输入框，延迟更新以避免键盘闪退
+    if (isProfileInput) {
+        setTimeout(() => {
+            updateProfileDisplayContent();
+            // 恢复焦点和光标位置
+            if (activeElement) {
+                activeElement.focus();
+                if (cursorPosition !== null && activeElement.tagName === 'INPUT') {
+                    activeElement.setSelectionRange(cursorPosition, cursorPosition);
+                }
+            }
+        }, 100);
+        return;
+    }
+    
+    // 直接更新内容
+    updateProfileDisplayContent();
+    
+    // 恢复焦点和光标位置
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'SELECT')) {
+        setTimeout(() => {
+            activeElement.focus();
+            if (cursorPosition !== null && activeElement.tagName === 'INPUT') {
+                activeElement.setSelectionRange(cursorPosition, cursorPosition);
+            }
+        }, 50);
+    }
+}
+
+// 分离内容更新逻辑，避免在输入时频繁更新
+function updateProfileDisplayContent() {
+    const style = userProfile.speakingStyle;
+    const svd = userProfile.svdProfile;
+    const agent = userProfile.aiAgent;
+    
+    // 更新说话风格显示
+    const styleDisplay = document.getElementById('speaking-style-display');
+    if (userProfile.lastUpdated && Object.keys(style).length > 0) {
+        styleDisplay.innerHTML = `
+            <p><strong>说话风格分析结果：</strong></p>
+            <p>• 正式程度：${style.formality || 0}/10</p>
+            <p>• 情感表达：${style.emotion || 0}/10</p>
+            <p>• 语言复杂度：${style.complexity || 0}/10</p>
+            <p>• 礼貌程度：${style.politeness || 0}/10</p>
+            <p>• 幽默感：${style.humor || 0}/10</p>
+            <p>• 表情使用：${style.emoji || 0}/10</p>
+            ${style.topics && style.topics.length > 0 ? `<p>• 感兴趣的话题：${style.topics.join('、')}</p>` : ''}
+        `;
+    } else {
+        styleDisplay.innerHTML = '<p>请多聊天，我会自动分析你的说话风格~</p>';
+    }
+    
+    // 更新SVD画像显示
+    const svdDisplay = document.getElementById('svd-profile-display');
+    if (userProfile.lastUpdated && svd.social) {
+        svdDisplay.innerHTML = `
+            <p><strong>SVD三维度画像：</strong></p>
+            <p><strong>社交维度：</strong></p>
+            <p>• 外向性：${svd.social.extroversion || 0}/10</p>
+            <p>• 宜人性：${svd.social.agreeableness || 0}/10</p>
+            <p>• 沟通能力：${svd.social.communication || 0}/10</p>
+            ${svd.values ? `
+            <p><strong>价值观维度：</strong></p>
+            <p>• 开放性：${svd.values.openness || 0}/10</p>
+            <p>• 尽责性：${svd.values.conscientiousness || 0}/10</p>
+            <p>• 创造力：${svd.values.creativity || 0}/10</p>
+            ` : ''}
+            ${svd.development ? `
+            <p><strong>发展维度：</strong></p>
+            <p>• 学习能力：${svd.development.learning || 0}/10</p>
+            <p>• 适应性：${svd.development.adaptability || 0}/10</p>
+            <p>• 成长潜力：${svd.development.growth || 0}/10</p>
+            ` : ''}
+        `;
+    } else {
+        svdDisplay.innerHTML = '<p>基于对话历史生成的用户画像~</p>';
+    }
+    
+    // 更新AI智能体显示
+    const agentDisplay = document.getElementById('ai-agent-display');
+    if (userProfile.lastUpdated && agent.personality) {
+        agentDisplay.innerHTML = `
+            <p><strong>专属AI智能体：</strong></p>
+            <p>• 性格：${agent.personality}</p>
+            <p>• 说话风格：${agent.speakingStyle}</p>
+            <p>• 回应模式：${agent.responsePattern}</p>
+            ${agent.specialFeatures && agent.specialFeatures.length > 0 ? 
+                `<p>• 特殊功能：${agent.specialFeatures.join('、')}</p>` : ''}
+            ${agent.recommendations && agent.recommendations.length > 0 ? 
+                `<p>• 个性化推荐：${agent.recommendations.join('、')}</p>` : ''}
+        `;
+    } else {
+        agentDisplay.innerHTML = '<p>基于你画像生成的专属AI智能体~</p>';
+    }
+}
+
+// 用户画像设置面板初始化
+// 页面加载时初始化用户画像设置面板
+window.addEventListener('load', function() {
+    // 确保用户画像设置面板存在
+    const profilePanel = document.getElementById('profile-panel');
+    if (profilePanel) {
+        // 为画像设置面板添加全局事件隔离
+        profilePanel.addEventListener('click', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        profilePanel.addEventListener('focus', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        profilePanel.addEventListener('blur', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        profilePanel.addEventListener('input', function(e) {
+            e.stopPropagation();
+        }, true);
+        
+        // 添加专门的输入框稳定性处理
+        const profileInputs = profilePanel.querySelectorAll('input, select');
+        profileInputs.forEach(input => {
+            // 防止输入框失去焦点导致键盘闪退
+            input.addEventListener('focus', function(e) {
+                // 确保输入框保持焦点状态
+                setTimeout(() => {
+                    if (this !== document.activeElement) {
+                        this.focus();
+                    }
+                }, 10);
+            });
+            
+            // 防止输入过程中的干扰
+            input.addEventListener('input', function(e) {
+                // 确保输入过程中不会失去焦点
+                if (this !== document.activeElement) {
+                    this.focus();
+                }
+            });
+            
+            // 防止点击时失去焦点
+            input.addEventListener('click', function(e) {
+                // 确保点击后保持焦点
+                setTimeout(() => {
+                    if (this !== document.activeElement) {
+                        this.focus();
+                    }
+                }, 10);
+            });
+        });
+        
+        // 全局防键盘闪退机制
+        let keyboardStabilityTimer = null;
+        let lastActiveInput = null;
+        
+        // 监听全局焦点变化
+        document.addEventListener('focusin', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+                lastActiveInput = e.target;
+                // 清除之前的定时器
+                if (keyboardStabilityTimer) {
+                    clearTimeout(keyboardStabilityTimer);
+                }
+                // 设置新的稳定性检查
+                keyboardStabilityTimer = setInterval(() => {
+                    if (lastActiveInput && lastActiveInput !== document.activeElement) {
+                        // 如果输入框失去焦点，尝试恢复
+                        lastActiveInput.focus();
+                    }
+                }, 100);
+            }
+        });
+        
+        // 监听全局焦点丢失
+        document.addEventListener('focusout', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+                // 延迟检查，给系统键盘一些时间
+                setTimeout(() => {
+                    if (e.target !== document.activeElement) {
+                        // 如果确实失去焦点，尝试恢复
+                        e.target.focus();
+                    }
+                }, 50);
+            }
+        });
+        
+        console.log('画像设置面板事件隔离、输入框稳定性处理和全局防键盘闪退机制已设置');
+    }
+});
 
 </script>
 </body>
